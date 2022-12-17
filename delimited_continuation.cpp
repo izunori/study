@@ -25,9 +25,9 @@ Cont<T,R> mu(Cont<Cont<T,R>,R> f){
 
 template<typename T, typename T2, typename R>
 Hom<Cont<T,R>, Cont<T2,R>> contF(Hom<T,T2> f){
-    return [&f](Cont<T,R> g){
-        return [&f,&g](Hom<T2,R> h){
-            Hom<T,R> k = [&f,&h](T x){return h(f(x));};
+    return [f](Cont<T,R> g){
+        return [f,g](Hom<T2,R> h){
+            Hom<T,R> k = [f,h](T x){return h(f(x));};
             return g(k);
         };
     };
@@ -65,14 +65,14 @@ Cont<int,int> fact(int n){
 template<typename T, typename T2, typename R>
 //Cont<T,R> call_cc(Hom<Hom<T,Cont<T2,R>>,Cont<T,R>> f){
 Cont<T,R> call_cc(Hom<KHom<T,T2,R>,Cont<T,R>> f){
-    return [&f](Hom<T,R> k){
+    return [f](Hom<T,R> k) -> R{
         //Hom<T, Cont<T2,R>> g = [&k](T t){
-        KHom<T,T2,R> g = [&k](T t){
-            return [&k,t](Hom<T2,R> x){
+        KHom<T,T2,R> g = [k](T t){
+            return [k,t](Hom<T2,R> x){
                 return k(t);
             };
         };
-        return f(g);
+        return f(g)(k);
     };
 }
 
@@ -84,12 +84,13 @@ KHom<T,T2,R> toKleisli(Hom<T,T2> f){
 }
 
 template<typename R>
-Cont<int,R> prod(std::vector<int> v, int i){
-    return call_cc([i,&v](Hom<KHom<int,int,R>,Cont<int,R>> cc){
-            if(i == v.size()) return 1;
-            if(v[i] == 0) return cc(0);
-            Hom<int,int> ele = [&v,i](int x){return x * v[i];};
-            return contF<int,int,R>(ele)(prod<R>(v,i+1));
+Cont<int,R> prod(std::vector<int>& v, int i){
+    return call_cc<int,int,R>([i,&v](KHom<int,int,R> cc) -> Cont<int,R>{
+                std::cout << i << "," << v[i] << std::endl;
+                if(i == v.size()) return eta<int,R>(1);
+                if(v[i] == 0) return cc(0);
+                Hom<int,int> ele = [&v,i](int x){return x * v[i];};
+                return contF<int,int,R>(ele)(prod<R>(v,i+1));
             });
 }
 
@@ -97,6 +98,7 @@ int main(){
 
     Hom<int, int> twice = [](int x){return 2*x;};
     Hom<int, int> id = [](int x){return x;};
+    Hom<int, void> print = [](int x){std::cout << x << std::endl; return;};
     std::cout << eta<int,int>(5)(twice) << std::endl;
     std::cout << fact(10)(id) << std::endl;
 
@@ -105,8 +107,10 @@ int main(){
     Hom<int, Cont<int,int>> cf2 = mac(cf);
     std::cout << cf2(10)(id) << std::endl;
 
-    std::vector<int> v = {1,2,3,4};
-    //auto c = prod<int>(v,0);
-    //std::cout << c(id) << std::endl;
+    std::vector<int> v = {1,2,0,4,5};
+    Cont<int,int> c = prod<int>(v,0);
+    std::cout << c(id) << std::endl;
+    Cont<int,void> c2 = prod<void>(v,0);
+    c2(print);
     return 0;
 }
