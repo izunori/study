@@ -1,11 +1,15 @@
 #include<iostream>
 #include<tuple>
+#include<vector>
 
 template<typename A, typename B>
 using Hom = std::function<B(A)>;
 
 template<typename T, typename R>
 using Cont = Hom<Hom<T,R>,R>;
+
+template<typename A, typename B, typename R>
+using KHom = Hom<A,Cont<B,R>>;
 
 template<typename T, typename R>
 Cont<T,R> eta(T x){
@@ -16,6 +20,16 @@ template<typename T, typename R>
 Cont<T,R> mu(Cont<Cont<T,R>,R> f){
     return [&f](Hom<T,R> g){
         return f(eta(g));
+    };
+}
+
+template<typename T, typename T2, typename R>
+Hom<Cont<T,R>, Cont<T2,R>> contF(Hom<T,T2> f){
+    return [&f](Cont<T,R> g){
+        return [&f,&g](Hom<T2,R> h){
+            Hom<T,R> k = [&f,&h](T x){return h(f(x));};
+            return g(k);
+        };
     };
 }
 
@@ -48,6 +62,36 @@ Cont<int,int> fact(int n){
     };
 }
 
+template<typename T, typename T2, typename R>
+//Cont<T,R> call_cc(Hom<Hom<T,Cont<T2,R>>,Cont<T,R>> f){
+Cont<T,R> call_cc(Hom<KHom<T,T2,R>,Cont<T,R>> f){
+    return [&f](Hom<T,R> k){
+        //Hom<T, Cont<T2,R>> g = [&k](T t){
+        KHom<T,T2,R> g = [&k](T t){
+            return [&k,t](Hom<T2,R> x){
+                return k(t);
+            };
+        };
+        return f(g);
+    };
+}
+
+template<typename T, typename T2, typename R>
+KHom<T,T2,R> toKleisli(Hom<T,T2> f){
+    return [&f](T t){
+        return eta<T2,R>(f(t));
+    };
+}
+
+template<typename R>
+Cont<int,R> prod(std::vector<int> v, int i){
+    return call_cc([i,&v](Hom<KHom<int,int,R>,Cont<int,R>> cc){
+            if(i == v.size()) return 1;
+            if(v[i] == 0) return cc(0);
+            Hom<int,int> ele = [&v,i](int x){return x * v[i];};
+            return contF<int,int,R>(ele)(prod<R>(v,i+1));
+            });
+}
 
 int main(){
 
@@ -60,5 +104,9 @@ int main(){
     Cont<Hom<int,int>,int> cf = eta<Hom<int,int>, int>(f);
     Hom<int, Cont<int,int>> cf2 = mac(cf);
     std::cout << cf2(10)(id) << std::endl;
+
+    std::vector<int> v = {1,2,3,4};
+    //auto c = prod<int>(v,0);
+    //std::cout << c(id) << std::endl;
     return 0;
 }
