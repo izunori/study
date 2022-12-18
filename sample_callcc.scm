@@ -43,3 +43,4 @@
 (print (+ 100 (prod v)))
 (print "# second")
 (print (mul-cont v))
+(print (+ 100 (mul-cont v)))

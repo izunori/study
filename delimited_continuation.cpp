@@ -2,6 +2,7 @@
 #include<tuple>
 #include<vector>
 #include<string>
+#include<functional>
 
 
 void print() {std::cout << std::endl;}
@@ -87,6 +88,10 @@ Cont<T,R> call_cc(Hom<Hom<T,Cont<T2,R>>,Cont<T,R>> f){
     };
 }
 
+Hom<int, int> mul(int n){
+    return [n](int x){print("mul",n*x); return n * x;};
+}
+
 template<typename T2, typename R>
 Cont<int,R> prod2(std::vector<int>& v, int i){
     return call_cc<int,T2,R>([i,&v](Hom<int,Cont<T2,R>> cc) -> Cont<int,R>{
@@ -94,8 +99,7 @@ Cont<int,R> prod2(std::vector<int>& v, int i){
             if(i == v.size()) return eta<int,R>(1);
             //if(v[i] == 0) return cc(0);
             if(v[i] == 0) return [cc](Hom<int,R> f){return cc(0)([](T2 x){return std::vector<int>();});}; // Rですらある必要がないのはなぜ？
-            Hom<int,int> ele = [&v,i](int x){return x * v[i];};
-            return contF<int,int,R>(ele)(prod2<T2,R>(v,i+1));
+            return contF<int,int,R>(mul(v[i]))(prod2<T2,R>(v,i+1));
         });
 }
 
@@ -106,19 +110,31 @@ KHom<T,T2,R> toKleisli(Hom<T,T2> f){
     };
 }
 
-Hom<int, int> mul(int n){
-    return [n](int x){return n * x;};
-}
 
 template<typename R>
 Cont<int,R> prod(std::vector<int>& v, int i){
-    return call_cc<int,int,R>([i,&v](KHom<int,int,R> cc) -> Cont<int,R>{
+    return call_cc<int,int,R>([i,&v](Hom<int,Cont<int,R>> cc) -> Cont<int,R>{
             print(i,v[i]);
             if(i == v.size()) return eta<int,R>(1);
             if(v[i] == 0) {print("find 0");return cc(0);};
             //Hom<int,int> ele = [&v,i](int x){print("mul",x);return x * v[i];};
             //return contF<int,int,R>(ele)(prod<R>(v,i+1));
             return contF<int,int,R>(mul(v[i]))(prod<R>(v,i+1));
+        });
+}
+
+template<typename R>
+Cont<int,R> impl(Hom<int,Cont<int,R>> cc, std::vector<int>& v, int i){
+    print(i,v[i]);
+    if(i == v.size()) return eta<int,R>(1);
+    if(v[i] == 0){print("find 0");return cc(0);};
+    return contF<int,int,R>(mul(v[i]))(impl<R>(cc,v,i+1));
+}
+
+template<typename R>
+Cont<int,R> prod3(std::vector<int>& v, int i){
+    return call_cc<int,int,R>([i,&v](Hom<int,Cont<int,R>> cc) -> Cont<int,R>{
+            return impl<R>(cc,v,i);
         });
 }
 
@@ -134,10 +150,10 @@ public:
     print("fact", n);
     if(n == 1){
         return call_cc<int,int,R>([this](Hom<int,Cont<int,R>> cc)->Cont<int,R>{
-                this->save = cc;
+                //this->save = cc;
                 //this->save = [](int x){return eta<int,R>(10*x);};
-                std::cout << &(cc) << std::endl;
-                std::cout << &(this->save) << std::endl;
+                //std::cout << &(cc) << std::endl;
+                //std::cout << &(this->save) << std::endl;
                 return eta<int,R>(1);
                 });
     } else {
@@ -150,7 +166,7 @@ int main(){
 
     Hom<int, int> twice = [](int x){return 2*x;};
     Hom<int, int> id = [](int x){return x;};
-    Hom<int, void> print = [](int x){std::cout << x << std::endl; return;};
+    Hom<int, void> print_int = [](int x){std::cout << x << std::endl; return;};
     std::cout << eta<int,int>(5)(twice) << std::endl;
     std::cout << fact(10)(id) << std::endl;
 
@@ -160,16 +176,22 @@ int main(){
     //std::cout << cf2(10)(id) << std::endl;
 
     std::vector<int> v = {1,2,3,0,5};
+    print("pattern 1");
     Cont<int,int> c = prod<int>(v,0);
     std::cout << c(id) << std::endl;
     //Cont<int,void> c2 = prod<void>(v,0);
     //c2(print);
-    Cont<int,void> c3 = prod2<std::string, void>(v,0);
-    c3(print);
+    print("pattern 2");
+    Cont<int,void> c2 = prod2<std::string, void>(v,0);
+    c2(print_int);
 
-    Fact<int> fact;
-    print(fact.fact(3)(id));
-    std::cout << &(fact.save) << std::endl;
-    std::cout << fact.save(2)(id) << std::endl;
+    print("pattern 3");
+    Cont<int,void> c3 = prod3<void>(v,0);
+    c3(print_int);
+
+    //Fact<int> fact;
+    //print(fact.fact(3)(id));
+    //std::cout << &(fact.save) << std::endl;
+    //std::cout << fact.save(2)(id) << std::endl;
     return 0;
 }
